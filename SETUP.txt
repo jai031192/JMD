@@ -1,0 +1,362 @@
+# LiveKit Self-Hosted Complete Setup on Azure
+
+## 🎯 Overview
+Complete LiveKit deployment matching LiveKit Cloud functionality including:
+- LiveKit Server (your existing deployment)
+- Redis (state management & pub/sub)
+- SIP Gateway (telephony integration)
+- Egress (recording & streaming)
+- Ingress (RTMP/WHIP input)
+
+## 📁 Project Structure
+```
+.
+├── livekit.yaml            # Complete LiveKit server configuration
+├── docker-compose.yml      # Container orchestration (Redis, SIP, Egress, Ingress)
+├── .env                    # Environment variables
+├── sip-config.yaml         # SIP gateway configuration
+├── egress-config.yaml      # Egress service configuration
+├── ingress-config.yaml     # Ingress service configuration
+├── setup-sip.ps1           # Windows SIP setup script
+├── setup-sip.sh            # Linux SIP setup script
+└── SETUP.txt               # This file
+```
+
+## 🔧 Prerequisites
+- Docker and Docker Compose installed on Azure VM
+- Your existing LiveKit server running at wss://livekit-socket.immodesta.com
+- LiveKit CLI for trunk/dispatch management
+- Azure NSG rules configured
+
+## 🚀 Quick Start
+
+### 1. Configure Your LiveKit Server
+Use the `livekit.yaml` file for your main LiveKit server. Key settings to update:
+
+```yaml
+rtc:
+  node_ip: "YOUR_AZURE_PUBLIC_IP"  # Your VM's public IP
+  
+region: "azure-eastus"  # Your region
+
+redis:
+  address: "YOUR_REDIS_HOST:6379"  # Redis from docker-compose or external
+```
+
+### 2. Start Supporting Services
+```powershell
+# Start all services (Redis + SIP + Egress + Ingress)
+docker-compose --profile full up -d
+
+# Or start minimal (Redis + SIP only)
+docker-compose up -d
+```
+
+### 3. Verify Services
+```powershell
+# Check all containers
+docker-compose ps
+
+# Check logs
+docker-compose logs -f
+
+# Test Redis
+docker exec livekit-redis redis-cli ping
+
+# Test SIP health
+curl http://localhost:8080/health
+```
+
+### 4. Start LiveKit CLI Container
+```powershell
+# Start the CLI tools container
+docker-compose --profile tools up -d livekit-cli
+
+# Verify it's running
+docker-compose ps livekit-cli
+```
+
+### 5. Use LiveKit CLI (Multiple Options)
+
+**Option A: Using Helper Scripts (Recommended)**
+```powershell
+# Windows
+.\lk.ps1 sip trunk list
+.\lk.ps1 room list
+.\lk.ps1 token create --join --room test-room --identity user1
+
+# Linux
+./lk.sh sip trunk list
+./lk.sh room list
+```
+
+**Option B: Direct Docker Exec**
+```powershell
+docker exec -it livekit-cli lk sip trunk list
+docker exec -it livekit-cli lk sip dispatch list
+docker exec -it livekit-cli lk room list
+```
+
+**Option C: Interactive Shell**
+```powershell
+docker exec -it livekit-cli sh
+# Then inside container:
+lk sip trunk list
+lk sip dispatch create --help
+```
+
+### 6. Configure SIP Trunk and Dispatch
+
+**Create a SIP Trunk:**
+```powershell
+# Using helper script
+.\lk.ps1 /scripts/create-trunk.sh MyTrunk sip:provider.example.com:5060 username password +1234567890
+
+# Or directly
+.\lk.ps1 sip trunk create --name MyTrunk --address sip:provider.example.com:5060 --username user --password pass --outbound-number +1234567890
+```
+
+**Create Dispatch Rule:**
+```powershell
+# First, get trunk ID
+.\lk.ps1 sip trunk list
+
+# Then create dispatch (replace TRUNK_ID with actual ID from above)
+.\lk.ps1 /scripts/create-dispatch.sh TRUNK_ID my-dispatch-rule call-
+
+# Or directly
+.\lk.ps1 sip dispatch create --trunk-id TRUNK_ID --name my-dispatch --rule-type individual --room-prefix call-
+```
+
+## 🔐 Azure Network Security Group Rules
+
+### Inbound Rules Required:
+| Port Range | Protocol | Purpose |
+|------------|----------|---------|
+| 7880 | TCP | LiveKit HTTP/WebSocket |
+| 7881 | TCP | LiveKit ICE/TCP |
+| 50000-60000 | UDP | LiveKit RTP/RTCP media |
+| 3478 | UDP | TURN server |
+| 5349 | TCP | TURNS server (TLS) |
+| 30000-40000 | UDP | TURN relay ports |
+| 5060 | UDP/TCP | SIP signaling |
+| 10000-10100 | UDP | SIP RTP media |
+| 1935 | TCP | RTMP ingress (optional) |
+| 8080 | TCP | WHIP ingress (optional) |
+| 6789 | TCP | Prometheus metrics |
+
+## 📊 Service Details
+
+### Redis (State & Pub/Sub)
+- **Port**: 6379
+- **Purpose**: Room state, participant data, distributed locking
+- **Data**: Persistent with AOF (Append-Only File)
+- **Health**: Auto-restart with health checks
+
+### SIP Gateway
+- **Ports**: 5060 (TCP/UDP), 10000-10100 (UDP)
+- **Purpose**: Connect phone calls to LiveKit rooms
+- **Features**: Inbound/outbound trunks, dispatch rules
+- **Config**: `sip-config.yaml`
+
+### Egress (Recording/Streaming)
+- **Purpose**: Record rooms, export to file/stream
+- **Outputs**: MP4, WebM, HLS, RTMP streams
+- **Storage**: Local or S3/Azure/GCP
+- **Config**: `egress-config.yaml`
+
+### Ingress (RTMP/WHIP Input)
+- **Ports**: 1935 (RTMP), 8080 (WHIP)
+- **Purpose**: Stream from OBS, FFmpeg, or WHIP clients
+- **Features**: Transcoding, multi-track support
+- **Config**: `ingress-config.yaml`
+
+## 🎛️ Configuration Features
+
+### LiveKit Server (`livekit.yaml`)
+- ✅ Redis integration
+- ✅ Embedded TURN server
+- ✅ External TURN support
+- ✅ All codecs enabled (Opus, VP8, H.264, VP9, AV1, H.265)
+- ✅ Audio RED (redundancy)
+- ✅ Congestion control
+- ✅ Webhook support
+- ✅ Multi-region support
+- ✅ Prometheus metrics
+- ✅ Agents framework
+- ✅ Node selector for scaling
+
+## 🔧 LiveKit CLI Management
+
+### Available Helper Scripts in `cli-scripts/`
+
+1. **`list-all.sh`** - List all trunks, dispatch rules, and rooms
+   ```powershell
+   .\lk.ps1 /scripts/list-all.sh
+   ```
+
+2. **`create-trunk.sh`** - Create a new SIP trunk
+   ```powershell
+   .\lk.ps1 /scripts/create-trunk.sh <name> <sip_address> <username> <password> <outbound_number>
+   ```
+
+3. **`create-dispatch.sh`** - Create a dispatch rule
+   ```powershell
+   .\lk.ps1 /scripts/create-dispatch.sh <trunk_id> <rule_name> <room_prefix>
+   ```
+
+4. **`delete-trunk.sh`** - Delete a SIP trunk
+   ```powershell
+   .\lk.ps1 /scripts/delete-trunk.sh <trunk_id>
+   ```
+
+5. **`create-token.sh`** - Generate a join token for testing
+   ```powershell
+   .\lk.ps1 /scripts/create-token.sh <room_name> <identity>
+   ```
+
+### Common CLI Commands
+
+```powershell
+# SIP Management
+.\lk.ps1 sip trunk list                    # List all trunks
+.\lk.ps1 sip trunk get --id <trunk_id>    # Get trunk details
+.\lk.ps1 sip dispatch list                 # List dispatch rules
+.\lk.ps1 sip dispatch delete --id <id>    # Delete dispatch rule
+
+# Room Management
+.\lk.ps1 room list                         # List active rooms
+.\lk.ps1 room create --name test-room     # Create a room
+.\lk.ps1 room delete --room test-room     # Delete a room
+
+# Participant Management
+.\lk.ps1 room participants --room test-room           # List participants
+.\lk.ps1 room remove-participant --room test-room --identity user1
+
+# Token Generation
+.\lk.ps1 token create --join --room my-room --identity user1 --valid-for 24h
+
+# Egress Management
+.\lk.ps1 egress list                       # List egress sessions
+.\lk.ps1 egress start-room-composite --room test-room --file output.mp4
+
+# Ingress Management
+.\lk.ps1 ingress list                      # List ingress sessions
+.\lk.ps1 ingress create --name my-stream --room test-room
+```
+
+## 🔄 Managing Services
+
+### Start/Stop
+```powershell
+# Start all
+docker-compose --profile full up -d
+
+# Start minimal (SIP + Redis only)
+docker-compose up -d
+
+# Stop all
+docker-compose down
+
+# Restart specific service
+docker-compose restart sip
+```
+
+### View Logs
+```powershell
+# All logs
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f sip
+docker-compose logs -f redis
+docker-compose logs -f egress
+docker-compose logs -f ingress
+```
+
+### Scale Services
+```powershell
+# Scale SIP gateways
+docker-compose up -d --scale sip=3
+```
+
+## 🧪 Testing Your Setup
+
+### Test LiveKit Connection
+```powershell
+# Using lk CLI
+lk token create --api-key 108378f337bbab3ce4e944554bed555a --api-secret 2098a695dcf3b99b4737cca8034b122fb86ca9f904c13be1089181c0acb7932d --join --room test-room --identity test-user
+```
+
+### Test SIP
+```powershell
+# List trunks
+lk sip trunk list
+
+# Test dispatch
+lk sip dispatch list
+```
+
+### Test Redis
+```powershell
+docker exec livekit-redis redis-cli info replication
+```
+
+## 🔧 Troubleshooting
+
+### SIP Not Connecting
+1. Check firewall rules (5060, 10000-10100)
+2. Verify Redis is running: `docker-compose ps redis`
+3. Check SIP logs: `docker-compose logs sip`
+4. Verify LiveKit URL is accessible from container
+
+### Redis Connection Issues
+1. Ensure Redis is healthy: `docker exec livekit-redis redis-cli ping`
+2. Check network connectivity: `docker network inspect livekit-network`
+3. Verify credentials in `.env`
+
+### Media Not Flowing
+1. Check UDP ports 50000-60000 are open
+2. Verify TURN server is configured correctly
+3. Test with ICE/TCP fallback on port 7881
+
+## 📚 Additional Resources
+
+- [LiveKit Docs](https://docs.livekit.io/)
+- [SIP Documentation](https://docs.livekit.io/sip/)
+- [Egress Documentation](https://docs.livekit.io/egress/)
+- [Ingress Documentation](https://docs.livekit.io/ingress/)
+- [Self-Hosting Guide](https://docs.livekit.io/home/self-hosting/deployment/)
+
+## 🔐 Security Best Practices
+
+1. **Change Redis password** in `.env`
+2. **Use strong API secrets** (32+ characters)
+3. **Enable TLS** for TURN server (configure certificates)
+4. **Restrict Redis access** (bind to localhost or use authentication)
+5. **Set up webhook authentication** if using webhooks
+6. **Use firewall rules** to restrict access to internal services
+7. **Regular updates** of Docker images
+
+## 📈 Monitoring
+
+Access Prometheus metrics at:
+```
+http://your-server:6789/metrics
+```
+
+Key metrics to monitor:
+- `livekit_room_total` - Active rooms
+- `livekit_participant_total` - Active participants
+- `livekit_track_publish_total` - Published tracks
+- CPU and memory usage per service
+
+## ⚙️ Production Optimizations
+
+1. **Use external Redis cluster** for HA
+2. **Deploy multiple LiveKit nodes** behind load balancer
+3. **Set up monitoring** with Prometheus + Grafana
+4. **Configure log aggregation** (ELK, Splunk, etc.)
+5. **Enable automatic backups** for Redis
+6. **Use managed storage** (Azure Blob) for recordings
+7. **Implement proper networking** with private subnets

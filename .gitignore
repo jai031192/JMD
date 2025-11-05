@@ -1,0 +1,66 @@
+# Sensitive configuration files - DO NOT COMMIT
+.env
+livekit.yaml
+sip-config.yaml
+egress-config.yaml
+ingress-config.yaml
+
+# Docker volumes and data
+*-data/
+redis-data/
+egress-data/
+cli-data/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Backup files
+*.backup
+*.bak
+*-backup.yaml
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Node modules (if any)
+node_modules/
+
+# Python (if any)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Database
+*.db
+*.sqlite
+
+# Compiled files
+*.exe
+*.dll
+*.so
+*.dylib

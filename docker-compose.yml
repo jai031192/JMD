@@ -1,0 +1,136 @@
+version: '3.9'
+
+services:
+  # Redis - State management and pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: livekit-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    networks:
+      - livekit-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # SIP Gateway - For telephony integration
+  sip:
+    image: livekit/sip:latest
+    container_name: livekit-sip
+    restart: unless-stopped
+    ports:
+      - "5060:5060/udp"
+      - "5060:5060/tcp"
+      - "10000-10100:10000-10100/udp"
+    environment:
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SIP_PORT=5060
+      - RTC_PORT_RANGE_START=10000
+      - RTC_PORT_RANGE_END=10100
+    volumes:
+      - ./sip-config.yaml:/config.yaml:ro
+    command: --config /config.yaml
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - livekit-network
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Egress - For recording and streaming (optional)
+  egress:
+    image: livekit/egress:latest
+    container_name: livekit-egress
+    restart: unless-stopped
+    environment:
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - EGRESS_CONFIG_FILE=/config.yaml
+    volumes:
+      - ./egress-config.yaml:/config.yaml:ro
+      - egress-data:/out
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - livekit-network
+    profiles:
+      - full
+
+  # Ingress - For RTMP/WHIP input (optional)
+  ingress:
+    image: livekit/ingress:latest
+    container_name: livekit-ingress
+    restart: unless-stopped
+    ports:
+      - "1935:1935"      # RTMP
+      - "8080:8080"      # WHIP
+    environment:
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - INGRESS_CONFIG_FILE=/config.yaml
+    volumes:
+      - ./ingress-config.yaml:/config.yaml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - livekit-network
+    profiles:
+      - full
+
+  # LiveKit CLI - For management tasks (trunks, dispatch rules, tokens, etc.)
+  livekit-cli:
+    image: livekit/livekit-cli:latest
+    container_name: livekit-cli
+    environment:
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+    volumes:
+      - ./cli-scripts:/scripts:ro
+      - cli-data:/root/.livekit
+    networks:
+      - livekit-network
+    entrypoint: ["/bin/sh"]
+    command: ["-c", "while true; do sleep 3600; done"]
+    depends_on:
+      - redis
+    profiles:
+      - tools
+
+networks:
+  livekit-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  redis-data:
+    driver: local
+  egress-data:
+    driver: local
+  cli-data:
+    driver: local
