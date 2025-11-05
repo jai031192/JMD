@@ -34,19 +34,13 @@ services:
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - SIP_PORT=5060
-      - RTC_PORT_RANGE_START=10000
-      - RTC_PORT_RANGE_END=10100
-    volumes:
-      - ./sip-config.yaml:/config.yaml:ro
-    command: --config /config.yaml
     depends_on:
       redis:
         condition: service_healthy
     networks:
       - livekit-network
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:8080/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -63,9 +57,7 @@ services:
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - EGRESS_CONFIG_FILE=/config.yaml
     volumes:
-      - ./egress-config.yaml:/config.yaml:ro
       - egress-data:/out
     depends_on:
       redis:
@@ -89,9 +81,6 @@ services:
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - INGRESS_CONFIG_FILE=/config.yaml
-    volumes:
-      - ./ingress-config.yaml:/config.yaml:ro
     depends_on:
       redis:
         condition: service_healthy
