@@ -28,16 +28,21 @@ fi
 # Generate JWT token
 TOKEN=$(docker exec livekit-cli lk token create --create-sip-dispatch --list-sip-dispatch)
 
-# Dispatch rule configuration JSON
+# Dispatch rule configuration JSON (Updated for Twilio integration)
 DISPATCH_JSON='{
   "dispatch_rule": {
     "rule": {
       "dispatchRuleIndividual": {
-        "roomPrefix": "sip-call-"
+        "roomPrefix": "twilio-call-"
       }
     },
-    "name": "default-inbound",
-    "trunk_ids": ["'$TRUNK_ID'"]
+    "name": "Twilio Dispatch Rule",
+    "roomConfig": {
+      "agents": [{
+        "agentName": "twilio-inbound-agent",
+        "metadata": "Twilio call routing metadata"
+      }]
+    }
   }
 }'
 

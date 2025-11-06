@@ -18,13 +18,13 @@ HTTP_URL=$(echo "$LIVEKIT_URL" | sed 's/wss:/https:/')
 # Generate JWT token for authentication
 TOKEN=$(docker exec livekit-cli lk token create --create-sip-trunk --list-sip-trunk)
 
-# Trunk configuration JSON
+# Trunk configuration JSON (Updated for Twilio testing)
 TRUNK_JSON='{
   "trunk": {
-    "name": "Inbound-Trunk",
-    "numbers": ["+18163016305"],
-    "inbound_addresses_regex": ".*",
-    "inbound_numbers_regex": ".*",
+    "name": "Twilio Test Trunk",
+    "numbers": [
+      "+13074606119"
+    ],
     "krispEnabled": true
   }
 }'

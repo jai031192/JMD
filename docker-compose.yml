@@ -28,12 +28,16 @@ services:
       - "5060:5060/udp"
       - "5060:5060/tcp"
       - "10000-10100:10000-10100/udp"
+      - "8080:8080"  # Health check port
     environment:
       - LIVEKIT_URL=${LIVEKIT_URL}
       - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - SIP_CONFIG_FILE=/etc/sip/config.yaml
+    volumes:
+      - ./configs/sip-config.yaml:/etc/sip/config.yaml:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -43,8 +47,8 @@ services:
       test: ["CMD-SHELL", "wget --spider -q http://localhost:8080/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 30s
 
   # Egress - For recording and streaming (optional)
   egress:
@@ -109,6 +113,30 @@ services:
     profiles:
       - tools
 
+  # SIP Configuration Initializer - Automatically creates trunks and dispatch rules
+  sip-init:
+    image: livekit/livekit-cli:latest
+    container_name: sip-config-init
+    environment:
+      - LIVEKIT_URL=${LIVEKIT_URL}
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=+13074606119
+    volumes:
+      - ./scripts:/scripts:ro
+      - init-logs:/var/log
+    networks:
+      - livekit-network
+    depends_on:
+      sip:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["/bin/sh", "/scripts/init-sip-api.sh"]
+    restart: "no"
+
 networks:
   livekit-network:
     driver: bridge
@@ -122,4 +150,6 @@ volumes:
   egress-data:
     driver: local
   cli-data:
+    driver: local
+  init-logs:
     driver: local

@@ -29,16 +29,23 @@ if ([string]::IsNullOrEmpty($TrunkId)) {
 # Generate JWT token
 $TOKEN = docker exec livekit-cli lk token create --create-sip-dispatch --list-sip-dispatch
 
-# Dispatch rule JSON
+# Dispatch rule JSON (Updated for Twilio integration)
 $DISPATCH_JSON = @{
     dispatch_rule = @{
         rule = @{
             dispatchRuleIndividual = @{
-                roomPrefix = "sip-call-"
+                roomPrefix = "twilio-call-"
             }
         }
-        name = "default-inbound"
-        trunk_ids = @($TrunkId)
+        name = "Twilio Dispatch Rule"
+        roomConfig = @{
+            agents = @(
+                @{
+                    agentName = "twilio-inbound-agent"
+                    metadata = "Twilio call routing metadata"
+                }
+            )
+        }
     }
 } | ConvertTo-Json -Depth 10
 
