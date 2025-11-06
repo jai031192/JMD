@@ -86,13 +86,26 @@ docker-compose up -d redis sip
 # Wait for core services
 Write-Host ""
 Write-Host "⏳ Waiting for core services to be ready..." -ForegroundColor Yellow
-Start-Sleep -Seconds 30
+Start-Sleep -Seconds 45
 
-# Start initialization
-Write-Host ""
-Write-Host "⚙️  Starting SIP configuration initialization..." -ForegroundColor Yellow
-$initResult = docker-compose up sip-init
-$initExitCode = $LASTEXITCODE
+Write-Host "🔍 Checking service health..." -ForegroundColor Yellow
+docker-compose ps
+
+# Optionally start initialization
+$TWILIO_SID = $env:TWILIO_ACCOUNT_SID
+$TWILIO_TOKEN = $env:TWILIO_AUTH_TOKEN
+
+if (-not [string]::IsNullOrEmpty($TWILIO_SID) -and -not [string]::IsNullOrEmpty($TWILIO_TOKEN)) {
+    Write-Host ""
+    Write-Host "⚙️  Starting SIP configuration initialization..." -ForegroundColor Yellow
+    $initResult = docker-compose --profile init up sip-init
+    $initExitCode = $LASTEXITCODE
+} else {
+    Write-Host ""
+    Write-Host "⚠️  Skipping SIP initialization (Twilio credentials not configured)" -ForegroundColor Yellow
+    Write-Host "   To enable auto-configuration, set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in .env" -ForegroundColor White
+    $initExitCode = 0
+}
 
 if ($initExitCode -eq 0) {
     Write-Host ""
@@ -102,20 +115,24 @@ if ($initExitCode -eq 0) {
     Write-Host "=====================" -ForegroundColor Cyan
     Write-Host "✅ Redis: Running on port 6379" -ForegroundColor Green
     Write-Host "✅ SIP Service: Running on port 5060" -ForegroundColor Green
-    Write-Host "✅ RTP Ports: 10000-10100" -ForegroundColor Green
+    Write-Host "✅ RTP Ports: 50000-60000" -ForegroundColor Green
     Write-Host "✅ Health Check: http://localhost:8080/health" -ForegroundColor Green
-    Write-Host "✅ Twilio Trunk: Created for +13074606119" -ForegroundColor Green
-    Write-Host "✅ Dispatch Rule: Created with prefix 'twilio-call-'" -ForegroundColor Green
+    
+    if (-not [string]::IsNullOrEmpty($TWILIO_SID)) {
+        Write-Host "✅ Twilio Trunk: Created for +13074606119" -ForegroundColor Green
+        Write-Host "✅ Dispatch Rule: Created with prefix 'twilio-call-'" -ForegroundColor Green
+    }
+    
     Write-Host ""
     Write-Host "📞 Next Steps:" -ForegroundColor Cyan
     Write-Host "1. Configure Twilio webhook URL: http://YOUR_PUBLIC_IP:5060" -ForegroundColor White
-    Write-Host "2. Ensure firewall allows ports 5060 and 10000-10100" -ForegroundColor White
+    Write-Host "2. Ensure firewall allows ports 5060 and 50000-60000" -ForegroundColor White
     Write-Host "3. Test by calling +13074606119" -ForegroundColor White
     Write-Host ""
     Write-Host "🔧 Management Commands:" -ForegroundColor Cyan
     Write-Host "  View logs: docker-compose logs -f sip" -ForegroundColor White
-    Write-Host "  List trunks: docker exec livekit-cli lk sip trunk list" -ForegroundColor White
-    Write-Host "  List rules: docker exec livekit-cli lk sip dispatch list" -ForegroundColor White
+    Write-Host "  Create trunk: .\create-trunk-api.ps1" -ForegroundColor White
+    Write-Host "  Create dispatch rule: .\create-dispatch-api.ps1" -ForegroundColor White
     Write-Host "  Stop services: docker-compose down" -ForegroundColor White
 } else {
     Write-Host ""

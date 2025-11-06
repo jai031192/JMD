@@ -1,0 +1,50 @@
+# Corrected SIP Configuration for LiveKit SIP Service
+# This format matches what the LiveKit SIP service expects
+
+# Required: LiveKit server connection
+api_key: "108378f337bbab3ce4e944554bed555a"
+api_secret: "2098a695dcf3b99b4737cca8034b122fb86ca9f904c13be1089181c0acb7932d"
+ws_url: "wss://livekit-socket.immodesta.com"
+
+# Required: Redis configuration
+redis:
+  address: "redis:6379"
+  # username: ""  # Uncomment if Redis requires auth
+  # password: ""  # Uncomment if Redis requires auth
+  # db: 0         # Redis database number
+
+# Logging
+log_level: debug
+
+# Health check endpoint
+health_port: 8080
+
+# SIP configuration
+sip_port: 5060                    # SIP signaling port
+rtp_port: 50000-60000            # RTP port range for media
+
+# Network settings
+use_external_ip: true            # Auto-detect external IP
+# listen_ip: "0.0.0.0"           # IP to bind to (default: all interfaces)
+
+# Media configuration
+media_timeout: "30s"             # Media timeout
+media_timeout_initial: "10s"     # Initial media timeout
+enable_jitter_buffer: true       # Enable jitter buffer for better audio
+
+# Audio codecs
+codecs:
+  PCMU: true                     # G.711 μ-law
+  PCMA: true                     # G.711 A-law
+  opus: true                     # Opus codec
+  G722: true                     # G.722 wideband
+
+# DTMF configuration
+audio_dtmf: true                 # Generate audio DTMF tones
+
+# Security and SIP behavior
+hide_inbound_port: false         # Hide from port scanners
+add_record_route: true           # Add Record-Route headers
+
+# SIP timing
+sip_ringing_interval: "1s"       # Ringing tone interval

@@ -1,3 +1,15 @@
+# Fix SIP Configuration Issues - PowerShell Version
+
+Write-Host "🔧 Fixing SIP Configuration Issues..." -ForegroundColor Yellow
+
+# Backup current files
+Write-Host "📋 Creating backups..." -ForegroundColor Cyan
+Copy-Item docker-compose.yml docker-compose.yml.backup -ErrorAction SilentlyContinue
+Copy-Item sip-config.yaml sip-config.yaml.backup -ErrorAction SilentlyContinue
+
+# Apply fixes to docker-compose.yml
+Write-Host "🐳 Fixing Docker Compose configuration..." -ForegroundColor Cyan
+@'
 version: '3.9'
 
 services:
@@ -10,7 +22,7 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command: redis-server --appendonly yes
     networks:
       - livekit-network
     healthcheck:
@@ -111,32 +123,6 @@ services:
     profiles:
       - tools
 
-  # SIP Configuration Initializer - Automatically creates trunks and dispatch rules
-  sip-init:
-    image: livekit/livekit-cli:latest
-    container_name: sip-config-init
-    environment:
-      - LIVEKIT_URL=${LIVEKIT_URL}
-      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
-      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
-      - TWILIO_PHONE_NUMBER=+13074606119
-    volumes:
-      - ./scripts:/scripts:ro
-      - init-logs:/var/log
-    networks:
-      - livekit-network
-    depends_on:
-      sip:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: ["/bin/sh", "/scripts/init-sip-api.sh"]
-    restart: "no"
-    profiles:
-      - init
-
 networks:
   livekit-network:
     driver: bridge
@@ -151,5 +137,72 @@ volumes:
     driver: local
   cli-data:
     driver: local
-  init-logs:
-    driver: local
+'@ | Out-File -FilePath docker-compose.yml -Encoding UTF8
+
+# Apply fixes to sip-config.yaml
+Write-Host "📞 Fixing SIP configuration..." -ForegroundColor Cyan
+@'
+# LiveKit SIP Service Configuration
+
+# Required: LiveKit server connection
+api_key: "108378f337bbab3ce4e944554bed555a"
+api_secret: "2098a695dcf3b99b4737cca8034b122fb86ca9f904c13be1089181c0acb7932d"
+ws_url: "wss://livekit-socket.immodesta.com"
+
+# Required: Redis configuration
+redis:
+  address: "redis:6379"
+
+# Logging
+log_level: debug
+
+# Health check endpoint
+health_port: 8080
+
+# SIP configuration
+sip_port: 5060
+rtp_port: 50000-60000
+
+# Network settings
+use_external_ip: true
+
+# Media configuration
+media_timeout: "30s"
+media_timeout_initial: "10s"
+enable_jitter_buffer: true
+
+# Audio codecs
+codecs:
+  PCMU: true
+  PCMA: true
+  opus: true
+  G722: true
+
+# DTMF configuration
+audio_dtmf: true
+
+# Security and SIP behavior
+hide_inbound_port: false
+add_record_route: true
+
+# SIP timing
+sip_ringing_interval: "1s"
+'@ | Out-File -FilePath sip-config.yaml -Encoding UTF8
+
+Write-Host "✅ Configuration fixes applied!" -ForegroundColor Green
+Write-Host ""
+Write-Host "🔍 Key fixes made:" -ForegroundColor Cyan
+Write-Host "1. ✅ Fixed SIP config file path alignment" -ForegroundColor Green
+Write-Host "2. ✅ Corrected SIP config format to match LiveKit SIP service expectations" -ForegroundColor Green
+Write-Host "3. ✅ Added proper Redis configuration to SIP config" -ForegroundColor Green
+Write-Host "4. ✅ Fixed port conflicts (Ingress now uses 8081)" -ForegroundColor Green
+Write-Host "5. ✅ Enabled SIP health checks" -ForegroundColor Green
+Write-Host "6. ✅ Removed sip-init dependency issues" -ForegroundColor Green
+Write-Host ""
+Write-Host "🚀 Now you can run:" -ForegroundColor Yellow
+Write-Host "   docker-compose down" -ForegroundColor White
+Write-Host "   docker-compose up -d" -ForegroundColor White
+Write-Host ""
+Write-Host "📋 Backups saved as:" -ForegroundColor Cyan
+Write-Host "   - docker-compose.yml.backup" -ForegroundColor White
+Write-Host "   - sip-config.yaml.backup" -ForegroundColor White

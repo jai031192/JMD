@@ -1,3 +1,4 @@
+# Corrected Docker Compose Configuration
 version: '3.9'
 
 services:
@@ -10,7 +11,7 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command: redis-server --appendonly yes
     networks:
       - livekit-network
     healthcheck:
@@ -134,8 +135,6 @@ services:
         condition: service_healthy
     command: ["/bin/sh", "/scripts/init-sip-api.sh"]
     restart: "no"
-    profiles:
-      - init
 
 networks:
   livekit-network:
